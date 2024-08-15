@@ -1,0 +1,11 @@
+name: trollio-console
+version: 0.1.0
+
+dependencies:
+  hokusai:
+    # git: https://codeberg.org/skinnyjames/hokusai.git
+    path: "../hokusai"
+
+targets:
+  trollio-console:
+    main: src/console.cr

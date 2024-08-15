@@ -1,0 +1,15 @@
+/.xmake/
+/bin/
+/lib/
+/vendor
+*.dwarf
+index.html
+.boxes
+PTMono.ttf
+SpaceMono.ttf
+.DS_Store
+
+src/Monaco.ttf
+src/MonacoB2.ttf
+
+test.cr

@@ -1,0 +1,18 @@
+version: 2.0
+shards:
+  athena-routing:
+    git: https://github.com/athena-framework/routing.git
+    version: 0.1.9
+
+  hokusai:
+    path: ../hokusai
+    version: 0.1.0
+
+  raylib-cr:
+    git: https://github.com/sol-vin/raylib-cr.git
+    version: 5.0+git.commit.79c5e17c72732ee62558eefe787a3a2170d6c17d
+
+  sdl:
+    git: https://github.com/ysbaddaden/sdl.cr.git
+    version: 0.1.0+git.commit.a86f867f8c7afbceb8d166ec09185ee14bf0c6d5
+
