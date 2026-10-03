@@ -22,6 +22,8 @@ module Trollio::Console::Blocks
     property last_size : Tuple(Float32, Float32)? = nil
     property click_position : {Float32, Float32}? = nil
     property last_cursor_offset : Int32? = nil
+    property last_scroll_y : Float32? = nil
+    property last_y : Float32? = nil
     
     getter parser : Console::ANSI::Parser do
       ansi_parser = Console::ANSI::Parser.new
@@ -48,27 +50,25 @@ module Trollio::Console::Blocks
         emit("cursor_reset")
 
         parser.callbacks.reset
-        parser.process(content, canvas)
-
-        # puts [content[0..20], parser.callbacks.text_buffer[0..20]]
+        parser.process(content, canvas.clone)
 
         clamping = Hokusai.fonts.active.clamp(parser.callbacks.text_buffer, size, canvas.width - padding[1] - padding[3])
-        
+
         self.last_clamping = clamping
         self.last_content = content
         self.last_size = {canvas.width, canvas.height}
       else
+        # puts ["other", canvas.y, canvas.height]
         clamping = last_clamping.not_nil!
       end
 
+
       iterator = Hokusai::Util::ClampingIterator.new(clamping, canvas.x + padding[3], canvas.y + padding[0])
-      boundary = panel_height || (canvas.y + canvas.height)
+      boundary = {canvas.y, canvas.y + canvas.height}
       offset_y = panel_offset || 0f32
-      buffer = ""
 
       # Register iterator callbacks
       iterator.on_draw do |text, x, y, segment|
-        buffer += text
         new_x = x
         parts = parser.callbacks.color_offsets.split(segment.offset, segment.size)
         selection.try do |selector|
@@ -83,7 +83,8 @@ module Trollio::Console::Blocks
         if parts.empty?
           draw do
             text(text, x, y) do |command|
-              command.color(parser.callbacks.default_color)
+              command.color([244,244,244])
+              # command.color(parser.callbacks.default_color)
               command.size(size)
             end
           end
@@ -140,27 +141,31 @@ module Trollio::Console::Blocks
       iterator.on_char do |char, hit_box, offset|
         selection.try do |selector|
           # # change the cursor if the offset is different
-          if offset == cursor_offset.try(&.-(1)) && (last_cursor_offset != cursor_offset || last_content != content)
-            selector.cursor = {hit_box.shift_right(2).x, hit_box.y + offset_y, hit_box.width, hit_box.height}
-    
-            self.last_cursor_offset = cursor_offset
+          if offset == cursor_offset.try(&.-(1))
+            # puts ["match", offset, cursor_offset, (last_cursor_offset != cursor_offset || last_content != content || last_scroll_y != offset_y)]
+            if (last_cursor_offset != cursor_offset || last_content != content || last_scroll_y != offset_y)
+              selector.cursor = {hit_box.shift_right(2).x, hit_box.y, hit_box.width, hit_box.height}
+      
+              self.last_cursor_offset = cursor_offset
+              self.last_scroll_y = offset_y
+            end
           end
 
           # change the cursor if a char was clicked
-          click_position.try do |click_x, click_y|
-            # next if selector.type.frozen?
+          # click_position.try do |click_x, click_y|
+          #   # next if selector.type.frozen?
 
-            if hit_box.shift_right.includes_x(click_x) && hit_box.includes_y(click_y)
-              selector.cursor = {hit_box.shift_right(2).x, hit_box.y + offset_y, hit_box.width, hit_box.height}
+          #   if hit_box.shift_right.includes_x(click_x) && hit_box.includes_y(click_y)
+          #     selector.cursor = {hit_box.shift_right(2).x, hit_box.y + offset_y, hit_box.width, hit_box.height}
 
-              if offset + 1 != last_cursor_offset
-                emit("select_offset", value: offset + 1)
-                self.last_cursor_offset = offset + 1
-              end
+          #     if offset + 1 != last_cursor_offset
+          #       emit("select_offset", value: offset + 1)
+          #       self.last_cursor_offset = offset + 1
+          #     end
 
-              self.click_position = nil
-            end
-          end
+          #     self.click_position = nil
+          #   end
+          # end
         end
       end
 
@@ -170,12 +175,10 @@ module Trollio::Console::Blocks
         segment.draw(size, boundary, selection: selection)
       end
     
-      emit("rendered", value: buffer)
+      emit("rendered", value: iterator.clamping.text.size)
       emit("height_updated", value: iterator.height + padding[0] + padding[2])
 
       yield(canvas)
-
-      emit("done")
     end
   end
 end

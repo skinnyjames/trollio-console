@@ -16,7 +16,7 @@ module Trollio::Console
     end
 
     def process(content : String, canvas : Hokusai::Canvas)
-      callbacks.canvas = canvas
+      # callbacks.canvas = Hokusai::Canvas.new(canvas.x, canvas.y, canvas.width, canvas.height)
 
       void = Box(Callbacks).box(callbacks)
       vt_parser.user_data = void
@@ -49,6 +49,7 @@ module Trollio::Console
     def on_parse
       ->(parser : VTParse::Parser*, action : VTParse::Action, codepoint : LibC::UInt) do
         renderer = Box(Callbacks).unbox(parser.value.user_data)
+        renderer.ansi_offset += 1
 
         params = [] of Int32
         (0...parser.value.num_params).each do |i|
@@ -68,16 +69,18 @@ module Trollio::Console
         when Action::EXECUTE
           case parser.value.state
           when State::GROUND
-          case codepoint.chr
-          when '\a'
-            renderer.block.emit("bell")
-            return
-          when '\n'
-            renderer.block.emit("cursor_down", value: 1)
-          when '\b'
-            renderer.block.emit("cursor_back", value: 1)
-            return
-          end
+            case codepoint.chr
+            when '\a'
+              renderer.block.emit("bell")
+              return
+            when '\n'
+              renderer.block.emit("cursor_down", value: 1)
+            when '\b'
+              renderer.block.emit("cursor_back", value: 1)
+              return
+            when '\t'
+              return
+            end
             # puts "EXECute: #{codepoint.chr.inspect}"
             renderer << codepoint.chr
             renderer.commit_style unless renderer.color_offsets.empty?
@@ -135,7 +138,7 @@ module Trollio::Console
             when 'M' # cursor position
               puts ["cursor pos", params]
             when 'H'
-              renderer.block.emit("erase_in_display", value: params[0]? || 2)
+              renderer.block.emit("erase_in_display", value: params[0]? || 2, offset: renderer.ansi_offset)
             else
               # puts "catchall csi: #{codepoint.chr}"
 

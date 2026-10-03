@@ -10,60 +10,60 @@ module Trollio::Console
   class Sessions::Traditional < Hokusai::Block
     @@template = <<-EOF
     [template]
-      selectable {
-        cursor_color="255,92,87"
+      panel {
+        @scroll="goto_clear"
+        :scroll_goto="scroll_goto"
+        @keypress="buffer_keypress"
       }
-        panel { 
-          @scroll="goto_clear"
-          :scroll_goto="scroll_goto"
-          @keypress="buffer_keypress"
-        }  
-          ansi {
-            :content="buffer_text"
-            :height="buffer_height"
-            text_color="233,233,233"
-            :selection_color="selection_color"
-            cursor_color="255,92,87"
-            :cursor_offset="last_offset"
-            :outline_color="outline_color""
-            outline="1"
-            outline_top="true"
-            padding="15,15,15,15"
-            size="16"
-            @bell="ansi_bell"
-            @cursor_reset="ansi_cursor_reset"
-            @cursor_up="ansi_cursor_up"
-            @cursor_down="ansi_cursor_down"
-            @cursor_forward="ansi_cursor_forward"
-            @cursor_back="ansi_cursor_back"
-            @cursor_next_line="ansi_cursor_next_line"
-            @cursor_prev_line="ansi_cursor_prev_line"
-            @cursor_position="ansi_cursor_position"
-            @erase_in_display="ansi_erase_in_display"
-            @erase_in_line="ansi_erase_in_line"
-            @scroll_up="ansi_scroll_up"
-            @scroll_down="ansi_scroll_down"
-            @set_mode="ansi_set_mode"
-            @rendered="set_buffer_offset"
-            @clear="clear_results"
-            @height_updated="buffer_update_height"
-          }
+        ansi {
+          :content="buffer_text"
+          :height="buffer_height"
+          text_color="233,233,233"
+          :selection_color="selection_color"
+          cursor_color="255,92,87"
+          :cursor_offset="last_offset"
+          :outline_color="outline_color""
+          outline="1"
+          outline_top="true"
+          padding="15,15,15,15"
+          :size="font_size"
+          @bell="ansi_bell"
+          @cursor_reset="ansi_cursor_reset"
+          @cursor_up="ansi_cursor_up"
+          @cursor_down="ansi_cursor_down"
+          @cursor_forward="ansi_cursor_forward"
+          @cursor_back="ansi_cursor_back"
+          @cursor_next_line="ansi_cursor_next_line"
+          @cursor_prev_line="ansi_cursor_prev_line"
+          @cursor_position="ansi_cursor_position"
+          @erase_in_display="ansi_erase_in_display"
+          @erase_in_line="ansi_erase_in_line"
+          @scroll_up="ansi_scroll_up"
+          @scroll_down="ansi_scroll_down"
+          @set_mode="ansi_set_mode"
+          @rendered="set_buffer_offset"
+          @clear="clear_results"
+          @height_updated="buffer_update_height"
+        }
     EOF
 
     include AnsiCursor
     include AnsiErase
   
     uses(
+      multiplex: Multiplex,
       input: Hokusai::Blocks::Input,
       empty: Hokusai::Blocks::Empty,
       panel: Hokusai::Blocks::Panel,
-      selectable: Hokusai::Blocks::Selectable,
       command: Blocks::Command,
       ansi: Blocks::ANSI,
-      vblock: Hokusai::Blocks::Vblock
+      vblock: Hokusai::Blocks::Vblock,
+      rect: Hokusai::Blocks::Rect,
+      text: Hokusai::Blocks::Text
     )
 
     inject(:theme, :theme, Theme)
+    inject(:sessions, :sessions, Array(String))
     computed(outline_color, Array(Int32), theme.outline_color, true)
     computed(selection_color, Array(Int32), theme.selection_color, true)
     computed(font_size, Int32, theme.font_size, true)
@@ -79,8 +79,9 @@ module Trollio::Console
 
     @[Hokusai::Target]
     def ansi_bell
-      ansi_erase_in_line(value: 0)
       emit("bell")
+
+      buffer.remove_bell
     end
 
     @[Hokusai::Target]
@@ -103,32 +104,41 @@ module Trollio::Console
 
     @[Hokusai::Target]
     def buffer_update_height(*, value : Float32)
-      self.ansi_buffer_height = value
+      self.ansi_buffer_height = value + 30
+      self.goto_y = value + 30
     end
 
     @[Hokusai::Target]
-    def set_buffer_offset(*, value : String)
-      self.buffer_offset = value.size
+    def set_buffer_offset(*, value : Int32)
+      self.buffer.offset = value
     end
 
     @[Hokusai::Target]
     def buffer_keypress(*, event : Hokusai::KeyPressEvent)
+      if event.shift && (event.super || event.ctrl)
+        case event.key
+        when Hokusai::Key::V
+          emit("new_session", vertical: true)
+        when Hokusai::Key::H
+          emit("new_session", vertical: false)
+        end
+        return
+      end
+
       case event.key
+      when Hokusai::Key::TAB
+        pty.io.print("\t")
+        pty.io.flush
       when Hokusai::Key::BACKSPACE
         pty.io.print("\b")
         pty.io.flush
       when Hokusai::Key::ENTER
-        puts "enter"
         pty.io.print("\n")
         pty.io.flush
       else
         pty.io.print(event.char)
         pty.io.flush
       end
-    end
-
-    def buffer_list
-      buffer.split("\n")
     end
 
     @[Hokusai::Target]
@@ -138,7 +148,6 @@ module Trollio::Console
 
     @[Hokusai::Method]
     def last_offset
-      puts [buffer.offset]
       buffer.offset
     end
     
@@ -157,23 +166,27 @@ module Trollio::Console
       ansi_buffer_height
     end
 
+    # def render(canvas : Hokusai::Canvas, &)
+    #   puts ["cavans", canvas.y, canvas.height]
+    #   yield(canvas)
+    # end
+
     def on_mounted
-      children.first.node.meta.focus
+      command = "/bin/bash"
+      puts dump
+
+      @io = Trollio::Console::Pty.fork(command, io_env)
 
       spawn io_start(done, pty.io)
       spawn io_output_handle(done)
-    end
 
-    def initialize(**args)
-      command = "/bin/bash"
-      @io = Trollio::Console::Pty.fork(command, io_env)
-      super(**args)
+      emit("focus")
     end
 
     def on_resize(canvas : Hokusai::Canvas)  
-      letter_width, letter_height = Hokusai.fonts.active.measure("a", 16)
+      letter_width, letter_height = Hokusai.fonts.active.measure("a", font_size)
     
-      rows = ((canvas.width - 40) / (letter_height)).ceil.to_u32
+      rows = ((canvas.width - 30) / (letter_height)).ceil.to_u32
       cols = ((canvas.height - 30) / (letter_width)).ceil.to_u32
 
       pty.set_size(rows, cols, letter_width, letter_height)
@@ -223,6 +236,7 @@ module Trollio::Console
       loop do
         result = fin.receive
         result[0]?.try do |output|
+          puts [output]
           self.buffer.add(output)
 
           self.goto_y = ansi_buffer_height

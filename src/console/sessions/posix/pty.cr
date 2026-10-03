@@ -43,7 +43,7 @@ class Trollio::Console::Pty
     termios.c_oflag = LibC::OPOST | LibC::ONLCR | LibC::ONOCR | LibC::ONLRET
     termios.c_cflag = LibC::CREAD  | LibC::HUPCL
     termios.c_lflag = LibC::ISIG | LibC::IEXTEN | LibC::ECHO | LibC::ECHOE | LibC::ECHOK | LibC::ICANON
-    termios.c_cc[3] = 0x04
+    # termios.c_cc[3] = 0x04
     termios
   end
 
@@ -76,11 +76,12 @@ class Trollio::Console::Pty
       )
     
       LibC.set_sid
+
+      sleep 0.000001
       exit(0)
     end
 
     io = ::IO::FileDescriptor.from_stdio(fd)
-    # io.raw!
     new(io)
   end
 

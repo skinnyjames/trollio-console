@@ -29,7 +29,6 @@ module Trollio::Console
           rows << [] of Char
         else
           self.current_col += 1
-          self.offset += 1
           rows[current_row] << ansi[index]
         end
 
@@ -37,19 +36,30 @@ module Trollio::Console
       end
     end
 
+    def remove_bell
+      rows[current_row].reject!(&.==('\a'))
+    end
+
     def move_cursor_to_end
       self.current_row = rows.size - 1
       self.current_col = rows[-1].size - 12
     end
 
-    def erase_in_display(mode : Int32)
+    def erase_in_display(mode : Int32,  offset : Int32)
       case mode
       when 0
         puts "erase in display {0}"
       when 1
         puts "erase in display {1}"
       when 2
-        self.rows = [rows[-1]]
+        puts "setting rows to last #{rows.last} #{offset} #{to_s.size}"
+        result = to_s[offset + 2..-1]
+        rows.clear
+        rows << [] of Char
+        self.current_row = 0
+        self.current_col = 0
+        add(result)
+
         self.current_row = 0
       end
     end
@@ -57,6 +67,8 @@ module Trollio::Console
     def erase_in_line(mode : Int32)
       case mode
       when 0
+        puts "erasing inline (#{rows[current_row].join("")}) #{rows[current_row][0...current_col].join("")}"
+
         rows[current_row] = rows[current_row][0...current_col]
         self.current_col = rows[current_row].size - 1
       when 1

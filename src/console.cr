@@ -3,7 +3,6 @@ require "hokusai/ui/src/hokusai/backends/raylib"
 require "hokusai/ui/src/hokusai/blocks/*"
 require "./lib/vtparse"
 require "./console/**"
-require "portaudio"
 
 class Trollio::Error < Exception; end
 
@@ -39,14 +38,19 @@ module Trollio::Console::Blocks
               vblock
                 empty { height="8" }
                 svg { :src="gear_icon" size="25" width="25" height="25" }
-          session {
-            @bell="session_play_bell"
-          }
+          selectable {
+            cursor_color="255,92,87"
+          }         
+            multiplex {
+              @bell="session_play_bell"
+            }
     EOF
 
     uses(
+      multiplex: Multiplex,
       session: Sessions::Traditional,
       titlebar: Titlebar,
+      selectable: Hokusai::Blocks::Selectable,
       vblock: Hokusai::Blocks::Vblock,
       hblock: Hokusai::Blocks::Hblock,
       empty: Hokusai::Blocks::Empty,
@@ -57,6 +61,7 @@ module Trollio::Console::Blocks
     computed(outline_color, Array(Int32), theme.outline_color, true)
 
     getter theme : Theme
+    getter multiplex_sessions = [] of String
 
     @[Hokusai::Target]
     def session_play_bell
@@ -68,6 +73,11 @@ module Trollio::Console::Blocks
       theme
     end
 
+    @[Hokusai::Method(provide: "sessions")]
+    def sessions
+      multiplex_sessions
+    end
+
     @[Hokusai::Method]
     def gear_icon
       "#{__DIR__}/console/icons/gear.svg"
@@ -76,6 +86,10 @@ module Trollio::Console::Blocks
     @[Hokusai::Method]
     def search_icon
       "#{__DIR__}/console/icons/search.svg"
+    end
+
+    def on_mounted
+      super
     end
 
     def initialize(**args)
@@ -105,7 +119,7 @@ module Trollio::Console::Blocks
     config.height = 600
     config.title = "Trollio Console"
     config.background = Raylib::BLANK
-    config.config_flags = Raylib::ConfigFlags::WindowBorderlessWindowedMode | Raylib::ConfigFlags::WindowTransparent
+    config.config_flags = Raylib::ConfigFlags::WindowBorderlessWindowedMode | Raylib::ConfigFlags::WindowTransparent | Raylib::ConfigFlags::WindowUndecorated
     config.window_state_flags = ::Raylib::ConfigFlags::WindowResizable
   end
 end

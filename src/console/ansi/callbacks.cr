@@ -61,6 +61,7 @@ module Trollio::Console
     property canvas_or_nil : Hokusai::Canvas? = nil
     property height : Float32 = 0f32
     property color_offsets = ColorOffsets.new
+    property ansi_offset : Int32 = 0
 
     getter default_color = [233,233,233]
     getter default_style = Style::Normal
@@ -104,6 +105,7 @@ module Trollio::Console
       self.color_start = 0
       self.color_stop = 0
       self.style_stack.clear
+      self.ansi_offset = 0
       self.color_offsets.reset
     end
 
